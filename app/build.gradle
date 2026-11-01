@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.livevideowallpaper'
+    compileSdk 34
+
+    defaultConfig {
+        // Change applicationId to your own reverse-domain id if you publish this.
+        applicationId 'com.example.livevideowallpaper'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        // Keep the MP4 uncompressed so MediaPlayer can read it straight from the APK.
+        noCompress 'mp4'
+    }
+}

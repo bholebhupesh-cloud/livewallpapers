@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Splash Live Wallpaper</string>
+    <string name="wallpaper_name">Splash Video Wallpaper</string>
+    <string name="wallpaper_description">Plays the video once each time the screen wakes</string>
+    <string name="main_hint">Tap the button, then choose \"Set wallpaper\" (home, lock, or both). The video plays once every time you press the power button to wake the screen.</string>
+    <string name="set_wallpaper">Set as live wallpaper</string>
+</resources>
