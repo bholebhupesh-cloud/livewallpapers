@@ -64,6 +64,11 @@ public class VideoWallpaperService extends WallpaperService {
                 if (Intent.ACTION_SCREEN_ON.equals(action)) {
                     setStatus("screen on");
                     playOnce();
+                } else if (Intent.ACTION_USER_PRESENT.equals(action)) {
+                    // Test build: also try again once the phone is unlocked.
+                    setStatus("unlocked");
+                    playedThisWake = false;
+                    playOnce();
                 } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
                     resetForNextWake();
                 }
@@ -80,6 +85,7 @@ public class VideoWallpaperService extends WallpaperService {
             IntentFilter filter = new IntentFilter();
             filter.addAction(Intent.ACTION_SCREEN_ON);
             filter.addAction(Intent.ACTION_SCREEN_OFF);
+            filter.addAction(Intent.ACTION_USER_PRESENT);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(screenReceiver, filter, Context.RECEIVER_EXPORTED);
             } else {
