@@ -25,6 +25,9 @@ import java.io.IOException;
  * Live wallpaper that plays the bundled video exactly once each time the screen
  * wakes (power button / lock screen). The video is not looped: when it ends, the
  * last frame stays on screen until the screen turns off again.
+ *
+ * If the video cannot play, the still image is shown instead together with a
+ * status line describing the error, so the cause is visible on the phone.
  */
 public class VideoWallpaperService extends WallpaperService {
 
@@ -43,7 +46,9 @@ public class VideoWallpaperService extends WallpaperService {
         private MediaPlayer player;
         private boolean surfaceReady;
         private boolean playedThisWake;
+        private String status = "waiting for screen on";
         private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
         private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
@@ -51,6 +56,7 @@ public class VideoWallpaperService extends WallpaperService {
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
                 if (Intent.ACTION_SCREEN_ON.equals(action)) {
+                    setStatus("screen on");
                     playOnce();
                 } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
                     resetForNextWake();
@@ -61,6 +67,10 @@ public class VideoWallpaperService extends WallpaperService {
         @Override
         public void onCreate(SurfaceHolder surfaceHolder) {
             super.onCreate(surfaceHolder);
+            textPaint.setColor(Color.WHITE);
+            textPaint.setTextSize(44f);
+            textPaint.setShadowLayer(6f, 0f, 0f, Color.BLACK);
+
             IntentFilter filter = new IntentFilter();
             filter.addAction(Intent.ACTION_SCREEN_ON);
             filter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -82,6 +92,7 @@ public class VideoWallpaperService extends WallpaperService {
         public void onSurfaceCreated(SurfaceHolder holder) {
             super.onSurfaceCreated(holder);
             surfaceReady = true;
+            setStatus("surface ready");
             playOnce();
         }
 
@@ -103,10 +114,14 @@ public class VideoWallpaperService extends WallpaperService {
             paintStill(false); // clear the previous frame so the old video does not linger
 
             try {
+                setStatus("loading video");
                 MediaPlayer mp = new MediaPlayer();
                 player = mp;
 
                 AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.wallpaper_video);
+                if (afd == null) {
+                    throw new IOException("video resource not found");
+                }
                 try {
                     mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
                 } finally {
@@ -117,10 +132,13 @@ public class VideoWallpaperService extends WallpaperService {
                 mp.setVolume(0f, 0f);                 // wallpapers stay silent
                 mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
                 mp.setSurface(getSurfaceHolder().getSurface());
-                mp.setOnPreparedListener(prepared -> prepared.start());
-                mp.setOnCompletionListener(done -> Log.d(TAG, "Playback finished, holding last frame"));
+                mp.setOnPreparedListener(prepared -> {
+                    setStatus("playing");
+                    prepared.start();
+                });
+                mp.setOnCompletionListener(done -> setStatus("played once"));
                 mp.setOnErrorListener((failed, what, extra) -> {
-                    Log.e(TAG, "MediaPlayer error what=" + what + " extra=" + extra);
+                    setStatus("player error " + what + "/" + extra);
                     mainHandler.post(() -> {
                         if (player == failed) {
                             releasePlayer();
@@ -131,10 +149,16 @@ public class VideoWallpaperService extends WallpaperService {
                 });
                 mp.prepareAsync();
             } catch (IOException | RuntimeException e) {
+                setStatus("exception: " + e);
                 Log.e(TAG, "Could not start video", e);
                 releasePlayer();
                 paintStill(true);
             }
+        }
+
+        private void setStatus(String message) {
+            status = message;
+            Log.d(TAG, message);
         }
 
         private void resetForNextWake() {
@@ -149,7 +173,7 @@ public class VideoWallpaperService extends WallpaperService {
             }
         }
 
-        /** Paints the background colour, optionally with the still image (center-cropped). */
+        /** Paints the background colour, optionally with the still image (center-cropped), plus the status line. */
         private void paintStill(boolean withImage) {
             if (!surfaceReady) {
                 return;
@@ -168,6 +192,7 @@ public class VideoWallpaperService extends WallpaperService {
                         still.recycle();
                     }
                 }
+                canvas.drawText(status, 40f, canvas.getHeight() - 160f, textPaint);
             } finally {
                 holder.unlockCanvasAndPost(canvas);
             }
