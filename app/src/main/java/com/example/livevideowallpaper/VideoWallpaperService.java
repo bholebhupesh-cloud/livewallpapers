@@ -4,14 +4,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,7 +17,12 @@ import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
-import java.io.IOException;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.datasource.RawResourceDataSource;
+import androidx.media3.exoplayer.ExoPlayer;
 
 /**
  * Live wallpaper that plays the bundled video exactly once each time the screen
@@ -27,7 +30,7 @@ import java.io.IOException;
  * last frame stays on screen until the screen turns off again.
  *
  * If the video cannot play, the still image is shown instead together with a
- * status line naming the step that failed, so the cause is visible on the phone.
+ * status line describing the problem, so the cause is visible on the phone.
  */
 public class VideoWallpaperService extends WallpaperService {
 
@@ -43,7 +46,7 @@ public class VideoWallpaperService extends WallpaperService {
 
     private class VideoEngine extends Engine {
 
-        private MediaPlayer player;
+        private ExoPlayer player;
         private boolean surfaceReady;
         private boolean playedThisWake;
         private String status = "waiting for screen on";
@@ -113,56 +116,46 @@ public class VideoWallpaperService extends WallpaperService {
             releasePlayer();
             paintStill(false); // clear the previous frame so the old video does not linger
 
-            String step = "create player";
             try {
-                MediaPlayer mp = new MediaPlayer();
-                player = mp;
+                setStatus("starting player");
+                ExoPlayer exo = new ExoPlayer.Builder(VideoWallpaperService.this).build();
+                player = exo;
 
-                // Standard order: attach the surface first, then set the source, then prepare.
-                step = "attach surface";
-                mp.setSurface(getSurfaceHolder().getSurface());
+                exo.setVideoSurface(getSurfaceHolder().getSurface());
+                exo.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+                exo.setVolume(0f);                              // wallpapers stay silent
+                exo.setRepeatMode(Player.REPEAT_MODE_OFF);      // play once, never repeat
 
-                step = "open video file";
-                AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.wallpaper_video);
-                if (afd == null) {
-                    throw new IOException("video resource not found");
-                }
-                try {
-                    step = "set data source";
-                    mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-                } finally {
-                    afd.close();
-                }
-
-                step = "configure player";
-                mp.setLooping(false);                 // play once, never repeat
-                mp.setVolume(0f, 0f);                 // wallpapers stay silent
-                mp.setOnPreparedListener(prepared -> {
-                    try {
-                        prepared.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
-                    } catch (RuntimeException e) {
-                        Log.w(TAG, "Could not set scaling mode", e); // playback still works without it
-                    }
-                    setStatus("playing");
-                    prepared.start();
-                });
-                mp.setOnCompletionListener(done -> setStatus("played once"));
-                mp.setOnErrorListener((failed, what, extra) -> {
-                    setStatus("player error " + what + "/" + extra);
-                    mainHandler.post(() -> {
-                        if (player == failed) {
-                            releasePlayer();
-                            paintStill(true);
+                exo.addListener(new Player.Listener() {
+                    @Override
+                    public void onPlaybackStateChanged(int state) {
+                        if (state == Player.STATE_READY) {
+                            setStatus("playing");
+                        } else if (state == Player.STATE_ENDED) {
+                            setStatus("played once");
                         }
-                    });
-                    return true;
+                    }
+
+                    @Override
+                    public void onPlayerError(PlaybackException error) {
+                        Log.e(TAG, "Playback error", error);
+                        setStatus("error: " + error.getErrorCodeName());
+                        mainHandler.post(() -> {
+                            if (player == exo) {
+                                releasePlayer();
+                                paintStill(true);
+                            }
+                        });
+                    }
                 });
 
-                step = "prepare";
-                mp.prepareAsync();
-            } catch (IOException | RuntimeException e) {
-                setStatus("failed at " + step + ": " + e.getClass().getSimpleName());
-                Log.e(TAG, "Could not start video at step " + step, e);
+                exo.setMediaItem(MediaItem.fromUri(
+                        RawResourceDataSource.buildRawResourceUri(R.raw.wallpaper_video)));
+                exo.prepare();
+                exo.play();
+            } catch (RuntimeException e) {
+                Log.e(TAG, "Could not start player", e);
+                setStatus("failed: " + e.getClass().getSimpleName());
                 releasePlayer();
                 paintStill(true);
             }
