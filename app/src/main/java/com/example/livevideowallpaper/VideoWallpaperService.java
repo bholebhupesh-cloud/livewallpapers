@@ -27,7 +27,7 @@ import java.io.IOException;
  * last frame stays on screen until the screen turns off again.
  *
  * If the video cannot play, the still image is shown instead together with a
- * status line describing the error, so the cause is visible on the phone.
+ * status line naming the step that failed, so the cause is visible on the phone.
  */
 public class VideoWallpaperService extends WallpaperService {
 
@@ -68,7 +68,7 @@ public class VideoWallpaperService extends WallpaperService {
         public void onCreate(SurfaceHolder surfaceHolder) {
             super.onCreate(surfaceHolder);
             textPaint.setColor(Color.WHITE);
-            textPaint.setTextSize(44f);
+            textPaint.setTextSize(32f);
             textPaint.setShadowLayer(6f, 0f, 0f, Color.BLACK);
 
             IntentFilter filter = new IntentFilter();
@@ -113,26 +113,36 @@ public class VideoWallpaperService extends WallpaperService {
             releasePlayer();
             paintStill(false); // clear the previous frame so the old video does not linger
 
+            String step = "create player";
             try {
-                setStatus("loading video");
                 MediaPlayer mp = new MediaPlayer();
                 player = mp;
 
+                // Standard order: attach the surface first, then set the source, then prepare.
+                step = "attach surface";
+                mp.setSurface(getSurfaceHolder().getSurface());
+
+                step = "open video file";
                 AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.wallpaper_video);
                 if (afd == null) {
                     throw new IOException("video resource not found");
                 }
                 try {
+                    step = "set data source";
                     mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
                 } finally {
                     afd.close();
                 }
 
+                step = "configure player";
                 mp.setLooping(false);                 // play once, never repeat
                 mp.setVolume(0f, 0f);                 // wallpapers stay silent
-                mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
-                mp.setSurface(getSurfaceHolder().getSurface());
                 mp.setOnPreparedListener(prepared -> {
+                    try {
+                        prepared.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+                    } catch (RuntimeException e) {
+                        Log.w(TAG, "Could not set scaling mode", e); // playback still works without it
+                    }
                     setStatus("playing");
                     prepared.start();
                 });
@@ -147,10 +157,12 @@ public class VideoWallpaperService extends WallpaperService {
                     });
                     return true;
                 });
+
+                step = "prepare";
                 mp.prepareAsync();
             } catch (IOException | RuntimeException e) {
-                setStatus("exception: " + e);
-                Log.e(TAG, "Could not start video", e);
+                setStatus("failed at " + step + ": " + e.getClass().getSimpleName());
+                Log.e(TAG, "Could not start video at step " + step, e);
                 releasePlayer();
                 paintStill(true);
             }
