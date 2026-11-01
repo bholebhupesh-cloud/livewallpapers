@@ -22,6 +22,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.datasource.RawResourceDataSource;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 
 /**
@@ -35,6 +36,8 @@ import androidx.media3.exoplayer.ExoPlayer;
 public class VideoWallpaperService extends WallpaperService {
 
     private static final String TAG = "VideoWallpaper";
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MS = 700;
 
     // Dark navy taken from the video's opening frame, so the wake-up flash blends in.
     private static final int BACKGROUND_COLOR = Color.rgb(8, 22, 38);
@@ -107,18 +110,28 @@ public class VideoWallpaperService extends WallpaperService {
             super.onSurfaceDestroyed(holder);
         }
 
-        /** Plays the video from the start, unless it already played for this wake-up. */
+        /** Starts the video from the beginning, unless it already started for this wake-up. */
         private void playOnce() {
             if (!surfaceReady || playedThisWake) {
                 return;
             }
             playedThisWake = true;
-            releasePlayer();
             paintStill(false); // clear the previous frame so the old video does not linger
+            startPlayer(1);
+        }
 
+        private void startPlayer(int attempt) {
+            releasePlayer();
+            if (!surfaceReady) {
+                return;
+            }
             try {
-                setStatus("starting player");
-                ExoPlayer exo = new ExoPlayer.Builder(VideoWallpaperService.this).build();
+                setStatus("starting player (try " + attempt + ")");
+
+                // Allow the software decoder if the hardware decoder fails to start.
+                DefaultRenderersFactory renderers = new DefaultRenderersFactory(VideoWallpaperService.this)
+                        .setEnableDecoderFallback(true);
+                ExoPlayer exo = new ExoPlayer.Builder(VideoWallpaperService.this, renderers).build();
                 player = exo;
 
                 exo.setVideoSurface(getSurfaceHolder().getSurface());
@@ -138,11 +151,20 @@ public class VideoWallpaperService extends WallpaperService {
 
                     @Override
                     public void onPlayerError(PlaybackException error) {
-                        Log.e(TAG, "Playback error", error);
-                        setStatus("error: " + error.getErrorCodeName());
+                        Log.e(TAG, "Playback error on try " + attempt, error);
+                        setStatus("error (try " + attempt + "): " + error.getErrorCodeName());
                         mainHandler.post(() -> {
-                            if (player == exo) {
-                                releasePlayer();
+                            if (player != exo) {
+                                return;
+                            }
+                            releasePlayer();
+                            if (attempt < MAX_ATTEMPTS) {
+                                mainHandler.postDelayed(() -> {
+                                    if (playedThisWake && surfaceReady) {
+                                        startPlayer(attempt + 1);
+                                    }
+                                }, RETRY_DELAY_MS);
+                            } else {
                                 paintStill(true);
                             }
                         });
@@ -154,8 +176,8 @@ public class VideoWallpaperService extends WallpaperService {
                 exo.prepare();
                 exo.play();
             } catch (RuntimeException e) {
-                Log.e(TAG, "Could not start player", e);
-                setStatus("failed: " + e.getClass().getSimpleName());
+                Log.e(TAG, "Could not start player on try " + attempt, e);
+                setStatus("failed (try " + attempt + "): " + e.getClass().getSimpleName());
                 releasePlayer();
                 paintStill(true);
             }
