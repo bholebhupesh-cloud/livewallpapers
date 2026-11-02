@@ -2,6 +2,8 @@ package com.example.cardwidget;
 
 import android.Manifest;
 import android.app.Activity;
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
@@ -33,6 +35,7 @@ public class MainActivity extends Activity {
         last4Input.setText(getSharedPreferences(SpendTracker.PREFS, MODE_PRIVATE)
                 .getString(SpendTracker.KEY_LAST4, ""));
         findViewById(R.id.btn_save_last4).setOnClickListener(v -> saveLast4());
+        findViewById(R.id.btn_add_widget).setOnClickListener(v -> addWidget());
     }
 
     @Override
@@ -49,6 +52,17 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         refreshInBackground();
+    }
+
+    /** Places the widget on the home screen directly, without going through the widget picker. */
+    private void addWidget() {
+        AppWidgetManager manager = AppWidgetManager.getInstance(this);
+        ComponentName provider = new ComponentName(this, CardWidgetProvider.class);
+        if (manager.isRequestPinAppWidgetSupported()) {
+            manager.requestPinAppWidget(provider, null, null);
+        } else {
+            Toast.makeText(this, "Long-press the home screen, then tap Widgets", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void saveLast4() {
