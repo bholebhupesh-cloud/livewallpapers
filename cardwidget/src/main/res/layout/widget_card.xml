@@ -5,44 +5,267 @@
     android:layout_height="match_parent"
     android:background="#E61F2937"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="10dp">
 
-    <TextView
-        android:id="@+id/tv_title"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Credit card · this month"
-        android:textColor="#B0BEC5"
-        android:textSize="12sp" />
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/h_card"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#78909C"
+            android:textSize="10sp" />
+        <TextView
+            android:id="@+id/h_spend"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#78909C"
+            android:textSize="10sp" />
+        <TextView
+            android:id="@+id/h_next"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#78909C"
+            android:textSize="10sp" />
+        <TextView
+            android:id="@+id/h_last"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#78909C"
+            android:textSize="10sp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/card0"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" android:textStyle="bold" />
+        <TextView
+            android:id="@+id/spend0"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+        <TextView
+            android:id="@+id/bill0"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#CFD8DC"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/last0"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#90CAF9"
+            android:textSize="13sp" android:textStyle="bold" />
+    </LinearLayout>
 
-    <TextView
-        android:id="@+id/tv_amount"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/row1"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
-        android:textSize="26sp"
-        android:textStyle="bold" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/card1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" android:textStyle="bold" />
+        <TextView
+            android:id="@+id/spend1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+        <TextView
+            android:id="@+id/bill1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#CFD8DC"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/last1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#90CAF9"
+            android:textSize="13sp" android:textStyle="bold" />
+    </LinearLayout>
 
-    <TextView
-        android:id="@+id/tv_detail"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/row2"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#CFD8DC"
-        android:textSize="12sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/card2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" android:textStyle="bold" />
+        <TextView
+            android:id="@+id/spend2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+        <TextView
+            android:id="@+id/bill2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#CFD8DC"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/last2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#90CAF9"
+            android:textSize="13sp" android:textStyle="bold" />
+    </LinearLayout>
 
-    <TextView
-        android:id="@+id/tv_status"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/row3"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:textColor="#90CAF9"
-        android:textSize="12sp" />
-
-    <TextView
-        android:id="@+id/tv_updated"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="#78909C"
-        android:textSize="10sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/card3"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" android:textStyle="bold" />
+        <TextView
+            android:id="@+id/spend3"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+        <TextView
+            android:id="@+id/bill3"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#CFD8DC"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/last3"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#90CAF9"
+            android:textSize="13sp" android:textStyle="bold" />
+    </LinearLayout>
 
 </LinearLayout>

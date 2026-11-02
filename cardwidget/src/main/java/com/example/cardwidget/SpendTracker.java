@@ -7,22 +7,34 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.provider.Telephony;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
-/** Reads this month's bank SMS on the phone, works out the card totals, and refreshes the widget. */
+/**
+ * Reads recent bank SMS on the phone, finds every credit card in them, and works out each
+ * card's totals. The results are saved for the app and the widget to show.
+ */
 public final class SpendTracker {
 
     static final String PREFS = "card_spend";
     static final String KEY_GRANTED = "granted";
-    static final String KEY_SPEND_PAISE = "spend_paise";
-    static final String KEY_COUNT = "count";
-    static final String KEY_LAST = "last";
+    static final String KEY_CARDS = "cards_json";
+    static final String KEY_BILLING = "billing_json";
     static final String KEY_UPDATED = "updated";
-    static final String KEY_LAST4 = "last4";
+
+    // Enough history for the previous billing cycle, plus a margin.
+    private static final long LOOKBACK_MS = 70L * 24 * 60 * 60 * 1000;
 
     private SpendTracker() {}
 
@@ -31,92 +43,141 @@ public final class SpendTracker {
                 && context.checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED;
     }
 
-    /** Recalculates the totals from the SMS inbox, saves them, then updates every widget. */
+    /** Reads the SMS inbox, recalculates every card, saves the results, then updates the widget. */
     static void refreshAndPush(Context app) {
         SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         boolean granted = hasSmsAccess(app);
-        long spendPaise = 0;
-        int count = 0;
-        String last = "";
-        String last4 = prefs.getString(KEY_LAST4, "");
+        JSONArray cards = new JSONArray();
 
         if (granted) {
-            Calendar monthStart = Calendar.getInstance();
-            monthStart.set(Calendar.DAY_OF_MONTH, 1);
-            monthStart.set(Calendar.HOUR_OF_DAY, 0);
-            monthStart.set(Calendar.MINUTE, 0);
-            monthStart.set(Calendar.SECOND, 0);
-            monthStart.set(Calendar.MILLISECOND, 0);
-
-            Cursor cursor = null;
             try {
-                cursor = app.getContentResolver().query(
-                        Telephony.Sms.Inbox.CONTENT_URI,
-                        new String[]{Telephony.Sms.BODY, Telephony.Sms.DATE},
-                        Telephony.Sms.DATE + " >= ?",
-                        new String[]{String.valueOf(monthStart.getTimeInMillis())},
-                        Telephony.Sms.DATE + " DESC");
-                if (cursor != null) {
-                    while (cursor.moveToNext()) {
-                        CardSmsParser.Event event =
-                                CardSmsParser.parse(cursor.getString(0), cursor.getLong(1), last4);
-                        if (event == null) {
-                            continue;
-                        }
-                        if (last.isEmpty()) {
-                            last = describe(event); // newest card message first
-                        }
-                        long paise = Math.round(event.amount * 100);
-                        if (event.type == CardSmsParser.Type.SPEND) {
-                            spendPaise += paise;
-                            count++;
-                        } else if (event.type == CardSmsParser.Type.REFUND) {
-                            spendPaise -= paise;
-                        }
+                Map<String, List<CardSmsParser.Event>> byCard = readCardEvents(app);
+                JSONObject billing = readBilling(prefs);
+
+                // Include cards you've set a billing day for even if no SMS mentions them yet.
+                Iterator<String> keys = billing.keys();
+                while (keys.hasNext()) {
+                    String last4 = keys.next();
+                    if (!byCard.containsKey(last4)) {
+                        byCard.put(last4, new ArrayList<>());
                     }
                 }
-            } catch (SecurityException e) {
-                granted = false; // permission was revoked while running
-            } finally {
-                if (cursor != null) {
-                    cursor.close();
+
+                long now = System.currentTimeMillis();
+                for (Map.Entry<String, List<CardSmsParser.Event>> entry : byCard.entrySet()) {
+                    String last4 = entry.getKey();
+                    List<CardSmsParser.Event> events = entry.getValue();
+                    String bank = "";
+                    for (CardSmsParser.Event event : events) {
+                        if (!event.bank.isEmpty()) {
+                            bank = event.bank;
+                            break; // events are newest first
+                        }
+                    }
+                    int day = billing.optInt(last4, 1);
+                    CardCycles.Summary summary = CardCycles.summarize(last4, bank, events, day, now);
+                    cards.put(toJson(summary));
                 }
+            } catch (SecurityException e) {
+                granted = false; // permission was removed while running
+            } catch (JSONException e) {
+                granted = false;
             }
         }
 
         prefs.edit()
                 .putBoolean(KEY_GRANTED, granted)
-                .putLong(KEY_SPEND_PAISE, spendPaise)
-                .putInt(KEY_COUNT, count)
-                .putString(KEY_LAST, last)
+                .putString(KEY_CARDS, cards.toString())
                 .putLong(KEY_UPDATED, System.currentTimeMillis())
                 .apply();
 
         CardWidgetProvider.pushToWidgets(app);
     }
 
-    static String formatMoney(double amount) {
-        return NumberFormat.getCurrencyInstance(new Locale("en", "IN")).format(amount);
+    /** Saves the billing day (1-28) for one card, then refreshes everything. */
+    static void setBillingDay(Context app, String last4, int day) throws JSONException {
+        SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        JSONObject billing = readBilling(prefs);
+        billing.put(last4, day);
+        prefs.edit().putString(KEY_BILLING, billing.toString()).apply();
+        refreshAndPush(app);
+    }
+
+    /** The saved cards, as a JSON array. Empty if nothing has been read yet. */
+    static JSONArray loadCards(Context app) {
+        SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        try {
+            return new JSONArray(prefs.getString(KEY_CARDS, "[]"));
+        } catch (JSONException e) {
+            return new JSONArray();
+        }
+    }
+
+    static String formatMoney(double amount, int fractionDigits) {
+        NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
+        format.setMinimumFractionDigits(fractionDigits);
+        format.setMaximumFractionDigits(fractionDigits);
+        return format.format(amount);
+    }
+
+    static String formatDate(long millis) {
+        return new SimpleDateFormat("dd MMM", Locale.ENGLISH).format(new Date(millis));
     }
 
     static String formatTime(long millis) {
         return new SimpleDateFormat("dd MMM, HH:mm", Locale.ENGLISH).format(new Date(millis));
     }
 
-    private static String describe(CardSmsParser.Event event) {
-        String when = formatTime(event.timeMillis);
-        String where = event.merchant.isEmpty() ? "" : " at " + event.merchant;
-        switch (event.type) {
-            case SPEND:
-                return "Spent " + formatMoney(event.amount) + where + " · " + when;
-            case REFUND:
-                return "Refund " + formatMoney(event.amount) + where + " · " + when;
-            case PAYMENT:
-                return "Card payment " + formatMoney(event.amount) + " · " + when;
-            case DECLINED:
-                return "Declined " + formatMoney(event.amount) + where + " · " + when;
-            default:
-                return "";
+    private static Map<String, List<CardSmsParser.Event>> readCardEvents(Context app) {
+        Map<String, List<CardSmsParser.Event>> byCard = new HashMap<>();
+        long since = System.currentTimeMillis() - LOOKBACK_MS;
+        Cursor cursor = null;
+        try {
+            cursor = app.getContentResolver().query(
+                    Telephony.Sms.Inbox.CONTENT_URI,
+                    new String[]{Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.ADDRESS},
+                    Telephony.Sms.DATE + " >= ?",
+                    new String[]{String.valueOf(since)},
+                    Telephony.Sms.DATE + " DESC");
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    CardSmsParser.Event event = CardSmsParser.parse(
+                            cursor.getString(0), cursor.getLong(1), cursor.getString(2), "");
+                    if (event == null || event.last4.isEmpty()) {
+                        continue; // not a card message, or the card number isn't shown
+                    }
+                    List<CardSmsParser.Event> events = byCard.get(event.last4);
+                    if (events == null) {
+                        events = new ArrayList<>();
+                        byCard.put(event.last4, events);
+                    }
+                    events.add(event);
+                }
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
         }
+        return byCard;
+    }
+
+    private static JSONObject readBilling(SharedPreferences prefs) {
+        try {
+            return new JSONObject(prefs.getString(KEY_BILLING, "{}"));
+        } catch (JSONException e) {
+            return new JSONObject();
+        }
+    }
+
+    private static JSONObject toJson(CardCycles.Summary s) throws JSONException {
+        JSONObject json = new JSONObject();
+        json.put("last4", s.last4);
+        json.put("bank", s.bank);
+        json.put("billingDay", s.billingDay);
+        json.put("spendThisCycle", s.spendThisCycle);
+        json.put("lastBill", s.lastBill);
+        json.put("nextBill", s.nextBillMillis);
+        return json;
     }
 }

@@ -4,15 +4,17 @@ import android.Manifest;
 import android.app.Activity;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.Toast;
 import android.widget.TextView;
+import android.widget.Toast;
 
-/** Lets you allow SMS access, and shows the same totals as the widget. */
+import org.json.JSONException;
+import org.json.JSONObject;
+
+/** Shows every detected card, lets you set each card's billing day, and places the widget. */
 public class MainActivity extends Activity {
 
     private static final int REQUEST_SMS = 1;
@@ -20,6 +22,7 @@ public class MainActivity extends Activity {
     private TextView summary;
     private Button allowButton;
     private EditText last4Input;
+    private EditText dayInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,15 +30,14 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         summary = findViewById(R.id.tv_summary);
         allowButton = findViewById(R.id.btn_allow);
+        last4Input = findViewById(R.id.et_last4);
+        dayInput = findViewById(R.id.et_day);
 
         allowButton.setOnClickListener(v -> requestPermissions(
                 new String[]{Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS}, REQUEST_SMS));
         findViewById(R.id.btn_refresh).setOnClickListener(v -> refreshInBackground());
-        last4Input = findViewById(R.id.et_last4);
-        last4Input.setText(getSharedPreferences(SpendTracker.PREFS, MODE_PRIVATE)
-                .getString(SpendTracker.KEY_LAST4, ""));
-        findViewById(R.id.btn_save_last4).setOnClickListener(v -> saveLast4());
         findViewById(R.id.btn_add_widget).setOnClickListener(v -> addWidget());
+        findViewById(R.id.btn_save_billing).setOnClickListener(v -> saveBillingDay());
     }
 
     @Override
@@ -65,16 +67,30 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void saveLast4() {
-        String digits = last4Input.getText().toString().trim();
-        if (!digits.isEmpty() && !digits.matches("\\d{4}")) {
-            Toast.makeText(this, "Enter exactly 4 digits", Toast.LENGTH_SHORT).show();
+    private void saveBillingDay() {
+        String last4 = last4Input.getText().toString().trim();
+        String dayText = dayInput.getText().toString().trim();
+        if (!last4.matches("\\d{4}")) {
+            Toast.makeText(this, "Enter the 4 digits of the card", Toast.LENGTH_SHORT).show();
             return;
         }
-        getSharedPreferences(SpendTracker.PREFS, MODE_PRIVATE).edit()
-                .putString(SpendTracker.KEY_LAST4, digits).apply();
-        Toast.makeText(this, digits.isEmpty() ? "Counting all cards" : "Saved", Toast.LENGTH_SHORT).show();
-        refreshInBackground();
+        int day;
+        try {
+            day = Integer.parseInt(dayText);
+        } catch (NumberFormatException e) {
+            day = 0;
+        }
+        if (day < 1 || day > 28) {
+            Toast.makeText(this, "Billing day must be between 1 and 28", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            SpendTracker.setBillingDay(getApplicationContext(), last4, day);
+            Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
+        } catch (JSONException e) {
+            Toast.makeText(this, "Could not save", Toast.LENGTH_SHORT).show();
+        }
+        showSummary();
     }
 
     private void refreshInBackground() {
@@ -93,25 +109,29 @@ public class MainActivity extends Activity {
             return;
         }
 
-        SharedPreferences prefs = getSharedPreferences(SpendTracker.PREFS, MODE_PRIVATE);
-        double spend = prefs.getLong(SpendTracker.KEY_SPEND_PAISE, 0) / 100.0;
-        int count = prefs.getInt(SpendTracker.KEY_COUNT, 0);
-        String last = prefs.getString(SpendTracker.KEY_LAST, "");
-        long updated = prefs.getLong(SpendTracker.KEY_UPDATED, 0);
+        org.json.JSONArray cards = SpendTracker.loadCards(this);
+        if (cards.length() == 0) {
+            summary.setText("No credit card SMS found in the last 70 days.");
+            return;
+        }
 
         StringBuilder text = new StringBuilder();
-        text.append("Credit card spend this month\n")
-                .append(SpendTracker.formatMoney(spend))
-                .append("  (").append(count).append(count == 1 ? " transaction)" : " transactions)")
-                .append("\n\n")
-                .append(last.isEmpty() ? "No card alerts found this month." : "Latest: " + last);
-        if (updated != 0) {
-            text.append("\n\nUpdated ").append(SpendTracker.formatTime(updated));
+        try {
+            for (int i = 0; i < cards.length(); i++) {
+                JSONObject card = cards.getJSONObject(i);
+                String bank = card.optString("bank", "Card");
+                text.append(bank).append(" •••• ").append(card.optString("last4"))
+                        .append("\n  Spend this cycle: ")
+                        .append(SpendTracker.formatMoney(card.optDouble("spendThisCycle", 0), 2))
+                        .append("\n  Billing day: ").append(card.optInt("billingDay", 1))
+                        .append(" • Next bill: ").append(SpendTracker.formatDate(card.optLong("nextBill", 0)))
+                        .append("\n  Last bill due: ")
+                        .append(SpendTracker.formatMoney(card.optDouble("lastBill", 0), 2))
+                        .append("\n\n");
+            }
+        } catch (JSONException e) {
+            text.append("Could not read saved cards.");
         }
-        String digits = prefs.getString(SpendTracker.KEY_LAST4, "");
-        text.append("\n\n").append(digits.isEmpty()
-                ? "Counting all card SMS. Enter your card's last 4 digits to count only that card."
-                : "Counting only the card ending " + digits + ".");
-        summary.setText(text.toString());
+        summary.setText(text.toString().trim());
     }
 }

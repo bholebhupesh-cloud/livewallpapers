@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
  */
 public final class CardSmsParser {
 
-    public enum Type { SPEND, REFUND, PAYMENT, DECLINED }
+    public enum Type { SPEND, REFUND, PAYMENT, DECLINED, STATEMENT }
 
     public static final class Event {
         public final Type type;
@@ -19,45 +19,59 @@ public final class CardSmsParser {
         public final String merchant;
         public final long timeMillis;
         public final String text;
+        /** Last four digits of the card, or "" if the message doesn't show them. */
+        public final String last4;
+        /** Bank name, or "" if it isn't recognised. */
+        public final String bank;
 
-        Event(Type type, double amount, String merchant, long timeMillis, String text) {
+        Event(Type type, double amount, String merchant, long timeMillis, String text,
+              String last4, String bank) {
             this.type = type;
             this.amount = amount;
             this.merchant = merchant;
             this.timeMillis = timeMillis;
             this.text = text;
+            this.last4 = last4;
+            this.bank = bank;
         }
     }
 
-    private static final Pattern CARD = Pattern.compile(
-            "\\b(card|cc)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CARD = Pattern.compile("\\b(card|cc)\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern BANK_ACCOUNT_DEBIT = Pattern.compile(
             "from\\s+(your\\s+)?(a/c|acct|account)", Pattern.CASE_INSENSITIVE);
     private static final Pattern AMOUNT = Pattern.compile(
             "(?:rs\\.?|inr|\\u20B9)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern LAST4 = Pattern.compile(
+            "(?i)(?:ending\\s*(?:with\\s*)?|x{2,}|\\*{2,})\\s*(\\d{4})(?!\\d)");
+    private static final Pattern STATEMENT_DUE = Pattern.compile(
+            "(?i)(?:total\\s+amount\\s+due|total\\s+due|amount\\s+due|total\\s+outstanding)"
+            + "[^0-9]{0,25}?(?:rs\\.?|inr|\\u20B9)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)");
     private static final Pattern MERCHANT = Pattern.compile(
             "\\bat\\s+([A-Za-z0-9&.'\\- ]{2,40}?)(?=\\s+on\\b|\\s+for\\b|\\s+using\\b|\\s+ref\\b|\\s+via\\b|\\s+was\\b|[.,;]|\\s*$)",
             Pattern.CASE_INSENSITIVE);
 
-    /**
-     * Like parse(), but only accepts messages that mention the given last four card digits,
-     * written as "ending 1234", "XX1234" or "****1234". An empty last4 accepts any card.
-     */
-    public static Event parse(String body, long timeMillis, String last4) {
-        if (last4 != null && !last4.isEmpty()) {
-            Pattern cardDigits = Pattern.compile(
-                    "(?i)(?:ending\\s*(?:with\\s*)?|x{2,}|\\*{2,})\\s*" + Pattern.quote(last4) + "(?!\\d)");
-            if (body == null || !cardDigits.matcher(body).find()) {
-                return null;
-            }
-        }
-        return parse(body, timeMillis);
-    }
+    /** Bank name to look for in the sender and text, in upper case. */
+    private static final String[][] BANKS = {
+            {"HDFC", "HDFC"}, {"ICICI", "ICICI"}, {"SBI", "SBI"}, {"AXIS", "Axis"}, {"KOTAK", "Kotak"},
+            {"AMERICAN EXPRESS", "Amex"}, {"AMEX", "Amex"}, {"YES BANK", "Yes Bank"}, {"IDFC", "IDFC"},
+            {"INDUSIND", "IndusInd"}, {"RBL", "RBL"}, {"STANDARD CHARTERED", "StanChart"},
+    };
 
     private CardSmsParser() {}
 
-    /** Returns the card event in this message, or null if it is not a card transaction alert. */
     public static Event parse(String body, long timeMillis) {
+        return parse(body, timeMillis, "", "");
+    }
+
+    public static Event parse(String body, long timeMillis, String last4Filter) {
+        return parse(body, timeMillis, "", last4Filter);
+    }
+
+    /**
+     * Parses one SMS. sender is the SMS address (for bank detection). If last4Filter is
+     * not empty, only messages for that card are returned.
+     */
+    public static Event parse(String body, long timeMillis, String sender, String last4Filter) {
         if (body == null || !CARD.matcher(body).find()) {
             return null;
         }
@@ -66,10 +80,25 @@ public final class CardSmsParser {
             return null; // bank account or debit card, not a credit card
         }
 
+        String last4 = "";
+        Matcher digits = LAST4.matcher(body);
+        if (digits.find()) {
+            last4 = digits.group(1);
+        }
+        if (last4Filter != null && !last4Filter.isEmpty() && !last4Filter.equals(last4)) {
+            return null;
+        }
+        String bank = bankOf((sender == null ? "" : sender) + " " + body);
+
+        Matcher due = STATEMENT_DUE.matcher(body);
+        if (due.find()) {
+            return new Event(Type.STATEMENT, money(due.group(1)), "", timeMillis, body, last4, bank);
+        }
+
         double amount = 0;
         Matcher amountMatcher = AMOUNT.matcher(body);
         if (amountMatcher.find()) {
-            amount = Double.parseDouble(amountMatcher.group(1).replace(",", ""));
+            amount = money(amountMatcher.group(1));
         }
 
         Type type;
@@ -97,6 +126,21 @@ public final class CardSmsParser {
         if (merchantMatcher.find()) {
             merchant = merchantMatcher.group(1).trim();
         }
-        return new Event(type, amount, merchant, timeMillis, body);
+        return new Event(type, amount, merchant, timeMillis, body, last4, bank);
+    }
+
+    /** Bank name found in the text, or "" if none of the known banks is mentioned. */
+    static String bankOf(String text) {
+        String upper = text.toUpperCase(Locale.ROOT);
+        for (String[] bank : BANKS) {
+            if (upper.contains(bank[0])) {
+                return bank[1];
+            }
+        }
+        return "";
+    }
+
+    private static double money(String text) {
+        return Double.parseDouble(text.replace(",", ""));
     }
 }
