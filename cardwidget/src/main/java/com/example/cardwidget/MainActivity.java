@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Toast;
 import android.widget.TextView;
 
 /** Lets you allow SMS access, and shows the same totals as the widget. */
@@ -15,6 +17,7 @@ public class MainActivity extends Activity {
 
     private TextView summary;
     private Button allowButton;
+    private EditText last4Input;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,6 +29,10 @@ public class MainActivity extends Activity {
         allowButton.setOnClickListener(v -> requestPermissions(
                 new String[]{Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS}, REQUEST_SMS));
         findViewById(R.id.btn_refresh).setOnClickListener(v -> refreshInBackground());
+        last4Input = findViewById(R.id.et_last4);
+        last4Input.setText(getSharedPreferences(SpendTracker.PREFS, MODE_PRIVATE)
+                .getString(SpendTracker.KEY_LAST4, ""));
+        findViewById(R.id.btn_save_last4).setOnClickListener(v -> saveLast4());
     }
 
     @Override
@@ -41,6 +48,18 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        refreshInBackground();
+    }
+
+    private void saveLast4() {
+        String digits = last4Input.getText().toString().trim();
+        if (!digits.isEmpty() && !digits.matches("\\d{4}")) {
+            Toast.makeText(this, "Enter exactly 4 digits", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        getSharedPreferences(SpendTracker.PREFS, MODE_PRIVATE).edit()
+                .putString(SpendTracker.KEY_LAST4, digits).apply();
+        Toast.makeText(this, digits.isEmpty() ? "Counting all cards" : "Saved", Toast.LENGTH_SHORT).show();
         refreshInBackground();
     }
 
@@ -75,6 +94,10 @@ public class MainActivity extends Activity {
         if (updated != 0) {
             text.append("\n\nUpdated ").append(SpendTracker.formatTime(updated));
         }
+        String digits = prefs.getString(SpendTracker.KEY_LAST4, "");
+        text.append("\n\n").append(digits.isEmpty()
+                ? "Counting all card SMS. Enter your card's last 4 digits to count only that card."
+                : "Counting only the card ending " + digits + ".");
         summary.setText(text.toString());
     }
 }

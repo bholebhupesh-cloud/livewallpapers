@@ -39,6 +39,21 @@ public final class CardSmsParser {
             "\\bat\\s+([A-Za-z0-9&.'\\- ]{2,40}?)(?=\\s+on\\b|\\s+for\\b|\\s+using\\b|\\s+ref\\b|\\s+via\\b|\\s+was\\b|[.,;]|\\s*$)",
             Pattern.CASE_INSENSITIVE);
 
+    /**
+     * Like parse(), but only accepts messages that mention the given last four card digits,
+     * written as "ending 1234", "XX1234" or "****1234". An empty last4 accepts any card.
+     */
+    public static Event parse(String body, long timeMillis, String last4) {
+        if (last4 != null && !last4.isEmpty()) {
+            Pattern cardDigits = Pattern.compile(
+                    "(?i)(?:ending\\s*(?:with\\s*)?|x{2,}|\\*{2,})\\s*" + Pattern.quote(last4) + "(?!\\d)");
+            if (body == null || !cardDigits.matcher(body).find()) {
+                return null;
+            }
+        }
+        return parse(body, timeMillis);
+    }
+
     private CardSmsParser() {}
 
     /** Returns the card event in this message, or null if it is not a card transaction alert. */

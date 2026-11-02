@@ -22,6 +22,7 @@ public final class SpendTracker {
     static final String KEY_COUNT = "count";
     static final String KEY_LAST = "last";
     static final String KEY_UPDATED = "updated";
+    static final String KEY_LAST4 = "last4";
 
     private SpendTracker() {}
 
@@ -37,6 +38,7 @@ public final class SpendTracker {
         long spendPaise = 0;
         int count = 0;
         String last = "";
+        String last4 = prefs.getString(KEY_LAST4, "");
 
         if (granted) {
             Calendar monthStart = Calendar.getInstance();
@@ -57,7 +59,7 @@ public final class SpendTracker {
                 if (cursor != null) {
                     while (cursor.moveToNext()) {
                         CardSmsParser.Event event =
-                                CardSmsParser.parse(cursor.getString(0), cursor.getLong(1));
+                                CardSmsParser.parse(cursor.getString(0), cursor.getLong(1), last4);
                         if (event == null) {
                             continue;
                         }
