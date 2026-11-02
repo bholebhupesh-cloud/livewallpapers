@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
         StringBuilder text = new StringBuilder();
         text.append("Credit card spend this month\n")
                 .append(SpendTracker.formatMoney(spend))
-                .append("  (").append(count).append(count == 1 ? " transaction)" : " transactions)"))
+                .append("  (").append(count).append(count == 1 ? " transaction)" : " transactions)")
                 .append("\n\n")
                 .append(last.isEmpty() ? "No card alerts found this month." : "Latest: " + last);
         if (updated != 0) {
