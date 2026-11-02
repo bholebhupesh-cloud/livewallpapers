@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "LiveVideoWallpaper"
 include ':app'
 include ':timeofday'
+include ':cardwidget'

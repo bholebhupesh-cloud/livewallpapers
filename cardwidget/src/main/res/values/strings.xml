@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Card Spend Widget</string>
+    <string name="widget_name">Credit card spend</string>
+    <string name="widget_description">This month\'s credit card spend and latest card alert, from your bank SMS</string>
+</resources>
