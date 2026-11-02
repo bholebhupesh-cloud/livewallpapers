@@ -57,6 +57,12 @@ public class CardWidgetProvider extends AppWidgetProvider {
                 app, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         views.setOnClickPendingIntent(R.id.widget_root, openPending);
 
+        // Column headings, shown above the card rows.
+        views.setTextViewText(R.id.h_card, "Card");
+        views.setTextViewText(R.id.h_spend, "Spend");
+        views.setTextViewText(R.id.h_next, "Next bill");
+        views.setTextViewText(R.id.h_last, "Last bill");
+
         for (int i = 0; i < MAX_ROWS; i++) {
             views.setViewVisibility(ROW[i], View.GONE);
         }
