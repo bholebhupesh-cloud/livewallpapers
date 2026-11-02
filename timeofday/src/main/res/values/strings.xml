@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Time of Day Wallpaper</string>
+    <string name="wallpaper_name">Time of Day Colours</string>
+    <string name="wallpaper_description">Colours that change through the day, from dawn to night</string>
+    <string name="main_hint">Tap the button, then choose \"Set wallpaper\" (home, lock, or both). The colours change with the time of day.</string>
+    <string name="set_wallpaper">Set as live wallpaper</string>
+</resources>
