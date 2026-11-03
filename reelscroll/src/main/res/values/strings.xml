@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reel Auto Scroll</string>
+    <string name="service_description">Scrolls to the next reel in Instagram, Facebook and YouTube after a set time. Use the floating button to turn it on or off.</string>
+</resources>
